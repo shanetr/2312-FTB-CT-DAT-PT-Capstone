@@ -1,0 +1,121 @@
+--Creating table for active business list
+create table new_business_list (
+	Registry_Number varchar(255),
+	Business_Name varchar (255),
+	Entity_Type varchar (255),
+	Registry_Date date,
+	Associated_Name_Type varchar (255),
+	First_Name varchar (255),
+	Middle_Name varchar (255),
+	Last_Name varchar (255),
+	Suffix varchar (255),
+	Not_of_Record_Entity varchar (255),
+	Entity_of_Record_Reg_Number varchar (255),
+	Entity_of_Record_Name varchar (255),
+	Address varchar (255),
+	Address_Continued varchar (255),
+	City varchar (255),
+	State varchar (255),
+	Zip_Code varchar (255),
+	Jurisdiction varchar (255),
+	Business_Details varchar (255)
+	)
+
+--count number of rows - active
+select count(*)
+from active_business_list abl --1459679 rows
+
+--Look for duplicates on active business list
+SELECT Registry_Number 
+, count(Registry_Number)
+FROM active_business_list 
+WHERE Associated_Name_Type = 'PRINCIPAL PLACE OF BUSINESS'
+GROUP BY Registry_Number 
+HAVING count(Registry_Number) > 1
+
+--Review duplicate records
+SELECT *
+FROM active_business_list 
+WHERE Registry_Number IN ('164695893','190312497','194231891','210611190','222925992','224881995','225446491')
+	AND Associated_Name_Type = 'PRINCIPAL PLACE OF BUSINESS'
+
+--count unique registry nubmers (key) - active
+select count(DISTINCT Registry_Number) 
+from active_business_list abl --527422 unique registry nubmers
+
+--count unique business names - active
+select count(DISTINCT business_name) 
+from active_business_list abl --526972 unique business name - MULTIPLE BUSINESS NAMES WITH DIFFERENT REGISTRY NUMBERS
+
+--Review unique business names with more than 1 registry number
+SELECT DISTINCT Business_Name 
+, Registry_Number 
+, count(DISTINCT registry_number)
+FROM active_business_list abl 
+GROUP BY Business_Name 
+HAVING count(DISTINCT Registry_Number) > 1
+
+--View example business --POSSIBLY NOT DUPLICATE
+SELECT *
+FROM active_business_list abl 
+WHERE Business_Name = 'ACTION REALTY'
+--AND Associated_Name_Type = 'PRINCIPAL PLACE OF BUSINESS'
+
+--Identify duplicated data - active
+SELECT DISTINCT Registry_Number 
+, count( Registry_Number)
+FROM active_business_list abl 
+WHERE Associated_Name_Type = 'PRINCIPAL PLACE OF BUSINESS'
+GROUP BY Registry_Number 
+HAVING count(Registry_Number) > 1 --7 FOUND
+
+SELECT *
+FROM active_business_list abl 
+WHERE Registry_Number IN ('164695893','190312497','194231891','210611190','222925992','224881995','225446491')
+	AND Associated_Name_Type = 'PRINCIPAL PLACE OF BUSINESS'
+
+		--Deleting duplicate records 
+		DELETE FROM active_business_list
+		WHERE registry_number in ('164695893','190312497','194231891','210611190','222925992','224881995','225446491')
+			AND address IN ('715 HEARST AVE STE 203','1207 PONDEROSA DR.','4354  HAZELGREEN RD NE','14205 SE 36TH STREET SUITE 215','2595 CANYON BLVD','3051 CORVIN DRIVE','320 MONROE ST OR PO BOX 161') --8 ROWS DELETED	
+		
+		--verify change
+		SELECT *
+		FROM active_business_list abl 
+		WHERE Registry_Number IN ('164695893','190312497','194231891','210611190','222925992','224881995','225446491')
+		AND Associated_Name_Type = 'PRINCIPAL PLACE OF BUSINESS' -- OK
+
+
+--Number of business for each entity type - active
+select entity_type, 
+count(DISTINCT Registry_Number)
+from active_business_list abl 
+group by Entity_Type 
+order by count(DISTINCT Registry_Number) DESC --Domestic LLC top
+
+--Calculating Year-over-Year Trend
+Select Year
+, Registry_Count
+, Var_Prior_Year
+,  printf('%.2f%%',(Var_Prior_Year * 1.0 /Prior_Year) *100) as Percent_Var --display output as percentage
+from (
+	Select *
+	, lag(Registry_Count,1) over (Order by Year) as Prior_Year
+	, Registry_Count - lag(Registry_Count,1) over (Order by Year) as Var_Prior_Year
+	from(
+		Select SUBSTR(Registry_Date,7,4) as Year --extracting YYYY from the date
+		, count(DISTINCT Registry_Number) as Registry_Count
+		from active_business_list abl 
+		group by Year
+		order by Registry_Date
+		)
+	)
+Where year between '2014' and '2023'
+
+--Prepare for data export, creating view with data filtered - active
+CREATE VIEW v_active_businesses
+AS
+SELECT *
+FROM active_business_list abl  
+WHERE Associated_Name_Type = 'PRINCIPAL PLACE OF BUSINESS'
+
